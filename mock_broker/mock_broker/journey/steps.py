@@ -36,6 +36,7 @@ from mock_broker.models.enums import (
     ActionType,
     CaseStatus,
     EventType,
+    ResolutionType,
     ResponseExpectation,
     SubjectRole,
 )
@@ -237,6 +238,32 @@ def _build_plans() -> list[FinancialPlan]:
 
 
 def step_resolve_consent(case: Case, request: Any) -> StepResult:
+    if request.resolution == ResolutionType.refused:
+        return StepResult(
+            events=[
+                _event(EventType.case_status_changed, {
+                    "previous_status": CaseStatus.open.value,
+                    "new_status": CaseStatus.declined.value,
+                    "reason": "User declined consent for credit search",
+                }),
+            ],
+            pending_action=BrokerAction(
+                id="action-case-outcome-declined",
+                action_type=ActionType.case_outcome,
+                regulated=False,
+                content=(
+                    "You have declined consent for a credit search. Without this, "
+                    "we are unable to assess your eligibility for loan products. "
+                    "No application has been submitted and no search has been "
+                    "recorded on your credit file. You are welcome to start a "
+                    "new enquiry at any time."
+                ),
+                response_expectation=ResponseExpectation.none,
+            ),
+            advance_to=9,
+            status=CaseStatus.declined,
+        )
+
     plans = _build_plans()
     case.plans = plans
     return StepResult(
@@ -394,6 +421,32 @@ def step_select_offer(case: Case, request: Any) -> StepResult:
 # --- Stage 7: Resolve (affirm declaration) → Instruction ---
 
 def step_resolve_declaration(case: Case, request: Any) -> StepResult:
+    if request.resolution == ResolutionType.denied:
+        return StepResult(
+            events=[
+                _event(EventType.case_status_changed, {
+                    "previous_status": CaseStatus.open.value,
+                    "new_status": CaseStatus.declined.value,
+                    "reason": "User denied the accuracy declaration",
+                }),
+            ],
+            pending_action=BrokerAction(
+                id="action-case-outcome-denied",
+                action_type=ActionType.case_outcome,
+                regulated=False,
+                content=(
+                    "You have indicated that the information provided may not be "
+                    "accurate. We are unable to proceed with an application on "
+                    "the basis of information that has not been declared as true "
+                    "and complete. No application has been submitted. You are "
+                    "welcome to start a new enquiry at any time."
+                ),
+                response_expectation=ResponseExpectation.none,
+            ),
+            advance_to=9,
+            status=CaseStatus.declined,
+        )
+
     selected_offer = case.offers[0] if case.offers else None
     apply_url = selected_offer.apply_url if selected_offer else "https://example.com/apply"
     lender_name = selected_offer.lender if selected_offer else "the lender"
