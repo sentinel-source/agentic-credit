@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+import hashlib
+import secrets
+
+from pydantic import BaseModel, Field
 
 from .enums import ActionType, ResponseExpectation, SubjectRole
 
@@ -11,6 +14,10 @@ class ActionSubject(BaseModel):
     role: SubjectRole
 
 
+def _generate_challenge_token() -> str:
+    return secrets.token_hex(8)
+
+
 class BrokerAction(BaseModel):
     id: str
     action_type: ActionType
@@ -19,3 +26,4 @@ class BrokerAction(BaseModel):
     response_expectation: ResponseExpectation
     subjects: list[ActionSubject] = []
     information_scope: dict[str, list[str]] | None = None
+    challenge_token: str = Field(default_factory=_generate_challenge_token)

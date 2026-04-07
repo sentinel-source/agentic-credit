@@ -22,7 +22,7 @@ The server starts on `http://localhost:8000`. Interactive API documentation is a
 ### CLI options
 
 ```bash
-.venv/bin/mock-broker --host 127.0.0.1 --port 9000 --reload
+.venv/bin/mock-broker --host 127.0.0.1 --port 8000 --reload
 ```
 
 ## API endpoints
@@ -31,7 +31,7 @@ The server starts on `http://localhost:8000`. Interactive API documentation is a
 
 | Method | Path | Operation | Description |
 |--------|------|-----------|-------------|
-| POST | `/cases` | Open Case | Initiate a new broking engagement |
+| POST | `/cases` | Open Case | Initiate a new broking engagement (requires `user_id`) |
 | POST | `/cases/{id}/provide` | Provide | Submit financial facts, attributes, or goals |
 | GET | `/cases/{id}/state` | Get State | Query current case state (no side effects) |
 | POST | `/cases/{id}/select` | Select | Commit to a plan or offer |
@@ -47,6 +47,12 @@ All mutating operations return `{ "events": [...], "pending_action": ... }`.
 | GET | `/vocabulary/fact-types` | Financial fact types the broker recognises |
 | GET | `/vocabulary/attribute-types` | Party attribute types the broker accepts |
 | GET | `/vocabulary/goal-types` | Financial goal types the broker supports |
+
+### Verification
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/verify` | Validate an HMAC-signed redirect token for lender handoff |
 
 ## Scripted journey
 
@@ -71,6 +77,26 @@ When a broker action is pending, only `Resolve Action` is permitted (plus `Provi
 Every operation is recorded in a structured evidence log attached to the case. Each entry captures the operation type, a timestamp, the structured data involved, and any transcript provided by the User Agent. The evidence log is returned as part of the `Get State` response.
 
 Transcripts are optional and can be submitted alongside `Provide` and `Resolve Action` requests via the `transcript` field. They are stored opaquely for audit purposes, as described in the protocol specification.
+
+## Security features
+
+The mock broker implements several security controls beyond the base protocol specification, demonstrating how brokers can mitigate risks identified in the protocol design.
+
+### Transcript challenge tokens
+
+Every broker action includes a `challenge_token` — a random string embedded in the action. When a User Agent submits a transcript alongside a `Provide` or `Resolve Action` call, the broker checks whether the token appears in the transcript. This provides a basic integrity signal: the User Agent at least had access to the action content when constructing the transcript. Each transcript is also SHA-256 hashed for tamper detection. Results are recorded in the evidence log as `challenge_token_verified` and `transcript_hash`.
+
+### Session binding
+
+`Open Case` requires a `user_id`. The broker rejects attempts to open a second case for a user who already has an open (non-terminal) case, returning HTTP 409. This prevents concurrent case manipulation where a User Agent might open parallel cases to probe or bypass gate sequences.
+
+### HMAC-signed redirect URLs
+
+At lender handoff, the `Instruction` action includes an HMAC-signed redirect token alongside the destination URL. Lenders can call `POST /verify` with the token, case ID, offer ID, and destination URL to verify the redirect is authentic and has not been tampered with. Tokens are time-limited (1 hour). If the User Agent substitutes a different URL, the token will not validate.
+
+### User Agent version tracking
+
+All endpoints read an optional `X-UA-Version` header. The first version seen on a case is recorded as the baseline. If a subsequent operation arrives with a different version, the evidence entry is flagged with `ua_version_mismatch: true`. This allows brokers to detect mid-case model or configuration changes that could affect compliance.
 
 ## Scope and limitations
 

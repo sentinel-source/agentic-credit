@@ -1,5 +1,5 @@
 def test_evidence_recorded_on_open(client):
-    resp = client.post("/cases", json={})
+    resp = client.post("/cases", json={"user_id": "user-ev-001"})
     case_id = resp.json()["case_id"]
     state = client.get(f"/cases/{case_id}/state").json()
     assert len(state["evidence"]) == 1
@@ -33,7 +33,7 @@ def test_transcript_stored_in_evidence(client, case_id):
 def test_evidence_accumulates_through_journey(client):
     from tests.helpers import advance_to_stage
 
-    resp = client.post("/cases", json={})
+    resp = client.post("/cases", json={"user_id": "user-ev-002"})
     case_id = resp.json()["case_id"]
     advance_to_stage(client, case_id, target_stage=5)
 

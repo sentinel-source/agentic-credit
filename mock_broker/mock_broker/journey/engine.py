@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from mock_broker.models.actions import BrokerAction
 from mock_broker.models.enums import ActionType, CaseStatus, TERMINAL_STATUSES
 from mock_broker.models.events import Event
@@ -49,6 +51,19 @@ class JourneyEngine:
             return
         raise BlockedError(case.pending_action)
 
+    @staticmethod
+    def _verify_transcript(
+        transcript: str | None,
+        challenge_token: str | None,
+    ) -> tuple[str | None, bool | None]:
+        """Hash the transcript and verify the challenge token appears in it."""
+        if transcript is None:
+            return None, None
+        transcript_hash = hashlib.sha256(transcript.encode()).hexdigest()
+        if challenge_token is None:
+            return transcript_hash, None
+        return transcript_hash, challenge_token in transcript
+
     def _apply(self, case: Case, result: StepResult) -> OperationResponse:
         case.stage = result.advance_to
         case.pending_action = result.pending_action
@@ -60,12 +75,11 @@ class JourneyEngine:
             pending_action=result.pending_action,
         )
 
-    def process_open(self, case: Case, request: OpenCaseRequest) -> OperationResponse:
+    def process_open(self, case: Case, request: OpenCaseRequest, *, ua_version: str | None = None) -> OperationResponse:
         step_fn = self._steps.get(("open", case.stage))
         if step_fn is None:
             raise ValueError(f"No step defined for open at stage {case.stage}")
         result = step_fn(case, request)
-        # Merge initial data into profile
         case.profile.facts.extend(request.facts)
         case.profile.attributes.extend(request.attributes)
         case.goals.extend(request.goals)
@@ -73,10 +87,10 @@ class JourneyEngine:
             "facts": [f.model_dump() for f in request.facts],
             "attributes": [a.model_dump() for a in request.attributes],
             "goals": [g.model_dump() for g in request.goals],
-        })
+        }, ua_version=ua_version)
         return self._apply(case, result)
 
-    def process_provide(self, case: Case, request: ProvideRequest) -> OperationResponse:
+    def process_provide(self, case: Case, request: ProvideRequest, *, ua_version: str | None = None) -> OperationResponse:
         self._check_terminal(case)
         self._check_blocked(case, allow_provide=True)
         step_fn = self._steps.get(("provide", case.stage))
@@ -87,14 +101,19 @@ class JourneyEngine:
         case.profile.attributes.extend(request.attributes)
         case.goals.extend(request.goals)
         result = step_fn(case, request)
+        challenge_token = case.pending_action.challenge_token if case.pending_action else None
+        transcript_hash, token_verified = self._verify_transcript(
+            request.transcript, challenge_token,
+        )
         case.record_evidence("provide", {
             "facts": [f.model_dump() for f in request.facts],
             "attributes": [a.model_dump() for a in request.attributes],
             "goals": [g.model_dump() for g in request.goals],
-        }, transcript=request.transcript)
+        }, transcript=request.transcript, transcript_hash=transcript_hash,
+            challenge_token_verified=token_verified, ua_version=ua_version)
         return self._apply(case, result)
 
-    def process_select(self, case: Case, request: SelectRequest) -> OperationResponse:
+    def process_select(self, case: Case, request: SelectRequest, *, ua_version: str | None = None) -> OperationResponse:
         self._check_terminal(case)
         self._check_blocked(case)
         step_fn = self._steps.get(("select", case.stage))
@@ -104,10 +123,10 @@ class JourneyEngine:
         case.record_evidence("select", {
             "entity_type": request.entity_type,
             "entity_id": request.entity_id,
-        })
+        }, ua_version=ua_version)
         return self._apply(case, result)
 
-    def process_resolve(self, case: Case, request: ResolveActionRequest) -> OperationResponse:
+    def process_resolve(self, case: Case, request: ResolveActionRequest, *, ua_version: str | None = None) -> OperationResponse:
         self._check_terminal(case)
         if case.pending_action is None:
             raise ValueError("No pending action to resolve")
@@ -119,18 +138,23 @@ class JourneyEngine:
         step_fn = self._steps.get(("resolve", case.stage))
         if step_fn is None:
             raise ValueError(f"No step defined for resolve at stage {case.stage}")
+        challenge_token = case.pending_action.challenge_token
         result = step_fn(case, request)
+        transcript_hash, token_verified = self._verify_transcript(
+            request.transcript, challenge_token,
+        )
         case.record_evidence("resolve_action", {
             "action_id": request.action_id,
             "resolution": request.resolution.value,
-        }, transcript=request.transcript)
+        }, transcript=request.transcript, transcript_hash=transcript_hash,
+            challenge_token_verified=token_verified, ua_version=ua_version)
         return self._apply(case, result)
 
-    def process_withdraw(self, case: Case) -> OperationResponse:
+    def process_withdraw(self, case: Case, *, ua_version: str | None = None) -> OperationResponse:
         self._check_terminal(case)
         step_fn = self._steps.get(("withdraw", None))
         if step_fn is None:
             raise ValueError("No withdraw step defined")
         result = step_fn(case, None)
-        case.record_evidence("withdraw")
+        case.record_evidence("withdraw", ua_version=ua_version)
         return self._apply(case, result)

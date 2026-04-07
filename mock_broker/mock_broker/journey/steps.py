@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from mock_broker.models.actions import ActionSubject, BrokerAction
+from mock_broker.security import sign_redirect
 from mock_broker.models.entities import (
     FinancialPlan,
     ProductFeature,
@@ -393,22 +394,12 @@ def step_select_offer(case: Case, request: Any) -> StepResult:
 # --- Stage 7: Resolve (affirm declaration) → Instruction ---
 
 def step_resolve_declaration(case: Case, request: Any) -> StepResult:
-    # Find the selected offer from the declaration's subjects
-    selected_offer = None
-    if case.offers:
-        # Use the last pending action's subjects to find the offer
-        selected_offer = case.offers[0]  # Default to first
-        for o in case.offers:
-            # The offer referenced in the declaration
-            if any(
-                s.entity_id == o.id
-                for s in (case.event_log[-1].data.get("subjects", []) if case.event_log else [])
-            ):
-                selected_offer = o
-                break
-
+    selected_offer = case.offers[0] if case.offers else None
     apply_url = selected_offer.apply_url if selected_offer else "https://example.com/apply"
     lender_name = selected_offer.lender if selected_offer else "the lender"
+    offer_id = selected_offer.id if selected_offer else "unknown"
+
+    redirect_token = sign_redirect(case.case_id, offer_id, apply_url)
 
     return StepResult(
         pending_action=BrokerAction(
@@ -420,13 +411,19 @@ def step_resolve_declaration(case: Case, request: Any) -> StepResult:
                 "By proceeding, you will be directed to the lender's website to "
                 "complete your application. The lender will perform a full credit "
                 "check, which will be recorded on your credit file.\n\n"
-                f"Click the link to proceed: {apply_url}"
+                f"Click the link to proceed: {apply_url}\n\n"
+                f"Redirect token: {redirect_token}"
             ),
             response_expectation=ResponseExpectation.authorise,
+            information_scope={
+                "redirect_token": [redirect_token],
+                "destination_url": [apply_url],
+                "offer_id": [offer_id],
+            },
             subjects=[
                 ActionSubject(
                     entity_type="product_offer",
-                    entity_id=selected_offer.id if selected_offer else "unknown",
+                    entity_id=offer_id,
                     role=SubjectRole.being_authorised,
                 ),
             ],

@@ -3,7 +3,7 @@
 
 def test_full_happy_path(client):
     # Stage 0: Open case
-    resp = client.post("/cases", json={})
+    resp = client.post("/cases", json={"user_id": "user-journey-001"})
     assert resp.status_code == 201
     data = resp.json()
     case_id = data["case_id"]

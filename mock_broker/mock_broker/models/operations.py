@@ -22,6 +22,7 @@ class OperationResponse(BaseModel):
 
 
 class OpenCaseRequest(BaseModel):
+    user_id: str
     facts: list[FinancialFact] = []
     attributes: list[PartyAttribute] = []
     goals: list[FinancialGoal] = []

@@ -1,5 +1,5 @@
-def test_open_case_empty(client):
-    resp = client.post("/cases", json={})
+def test_open_case_with_user_id(client):
+    resp = client.post("/cases", json={"user_id": "user-open-001"})
     assert resp.status_code == 201
     data = resp.json()
     assert "case_id" in data
@@ -8,6 +8,7 @@ def test_open_case_empty(client):
 
 def test_open_case_with_initial_facts(client):
     resp = client.post("/cases", json={
+        "user_id": "user-open-002",
         "facts": [
             {
                 "id": "f1",
@@ -32,6 +33,17 @@ def test_open_case_with_initial_facts(client):
 
 
 def test_open_case_returns_unique_ids(client):
-    r1 = client.post("/cases", json={})
-    r2 = client.post("/cases", json={})
+    r1 = client.post("/cases", json={"user_id": "user-open-003"})
+    r2 = client.post("/cases", json={"user_id": "user-open-004"})
     assert r1.json()["case_id"] != r2.json()["case_id"]
+
+
+def test_open_case_rejects_duplicate_user(client):
+    client.post("/cases", json={"user_id": "user-dup-001"})
+    resp = client.post("/cases", json={"user_id": "user-dup-001"})
+    assert resp.status_code == 409
+
+
+def test_open_case_requires_user_id(client):
+    resp = client.post("/cases", json={})
+    assert resp.status_code == 422

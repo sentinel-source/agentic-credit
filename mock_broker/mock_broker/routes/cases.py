@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from mock_broker.journey.engine import BlockedError, JourneyEngine, TerminalError
 from mock_broker.models.evidence import EvidenceEntryResponse
+from mock_broker.state.case_store import DuplicateUserError
 from mock_broker.models.operations import (
     CaseState,
     OpenCaseRequest,
@@ -33,14 +34,20 @@ def _get_case(request: Request, case_id: str):
     return case
 
 
+def _get_ua_version(request: Request) -> str | None:
+    return request.headers.get("X-UA-Version")
+
+
 @router.post("", status_code=201, response_model=OpenCaseResponse)
-def open_case(request: Request, body: OpenCaseRequest | None = None):
-    body = body or OpenCaseRequest()
+def open_case(request: Request, body: OpenCaseRequest):
     store = _get_store(request)
     engine = _get_engine(request)
-    case = store.create()
     try:
-        response = engine.process_open(case, body)
+        case = store.create(user_id=body.user_id)
+    except DuplicateUserError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    try:
+        response = engine.process_open(case, body, ua_version=_get_ua_version(request))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return OpenCaseResponse(
@@ -55,7 +62,7 @@ def provide(request: Request, case_id: str, body: ProvideRequest):
     case = _get_case(request, case_id)
     engine = _get_engine(request)
     try:
-        return engine.process_provide(case, body)
+        return engine.process_provide(case, body, ua_version=_get_ua_version(request))
     except TerminalError:
         raise HTTPException(status_code=409, detail=f"Case is in terminal state: {case.status.value}")
     except BlockedError as e:
@@ -81,6 +88,10 @@ def get_state(request: Request, case_id: str):
                 operation=e.operation,
                 data=e.data,
                 transcript=e.transcript,
+                transcript_hash=e.transcript_hash,
+                challenge_token_verified=e.challenge_token_verified,
+                ua_version=e.ua_version,
+                ua_version_mismatch=e.ua_version_mismatch,
             )
             for e in case.evidence_log
         ],
@@ -92,7 +103,7 @@ def select(request: Request, case_id: str, body: SelectRequest):
     case = _get_case(request, case_id)
     engine = _get_engine(request)
     try:
-        return engine.process_select(case, body)
+        return engine.process_select(case, body, ua_version=_get_ua_version(request))
     except TerminalError:
         raise HTTPException(status_code=409, detail=f"Case is in terminal state: {case.status.value}")
     except BlockedError as e:
@@ -106,7 +117,7 @@ def resolve_action(request: Request, case_id: str, body: ResolveActionRequest):
     case = _get_case(request, case_id)
     engine = _get_engine(request)
     try:
-        return engine.process_resolve(case, body)
+        return engine.process_resolve(case, body, ua_version=_get_ua_version(request))
     except TerminalError:
         raise HTTPException(status_code=409, detail=f"Case is in terminal state: {case.status.value}")
     except ValueError as e:
@@ -118,6 +129,6 @@ def withdraw(request: Request, case_id: str):
     case = _get_case(request, case_id)
     engine = _get_engine(request)
     try:
-        return engine.process_withdraw(case)
+        return engine.process_withdraw(case, ua_version=_get_ua_version(request))
     except TerminalError:
         raise HTTPException(status_code=409, detail=f"Case is in terminal state: {case.status.value}")

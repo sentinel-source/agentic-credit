@@ -14,5 +14,5 @@ def client():
 @pytest.fixture
 def case_id(client):
     """Open a case and return its ID."""
-    resp = client.post("/cases", json={})
+    resp = client.post("/cases", json={"user_id": "test-user-001"})
     return resp.json()["case_id"]

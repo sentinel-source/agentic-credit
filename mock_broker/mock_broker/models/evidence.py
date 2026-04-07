@@ -11,3 +11,7 @@ class EvidenceEntryResponse(BaseModel):
     operation: str
     data: dict[str, Any] = {}
     transcript: str | None = None
+    transcript_hash: str | None = None
+    challenge_token_verified: bool | None = None
+    ua_version: str | None = None
+    ua_version_mismatch: bool = False

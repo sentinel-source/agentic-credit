@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from mock_broker.journey.engine import JourneyEngine
-from mock_broker.routes import cases, vocabulary
+from mock_broker.routes import cases, verify, vocabulary
 from mock_broker.state.case_store import CaseStore
 
 
@@ -19,4 +19,5 @@ def create_app() -> FastAPI:
     app.state.engine = JourneyEngine()
     app.include_router(cases.router, prefix="/cases", tags=["cases"])
     app.include_router(vocabulary.router, prefix="/vocabulary", tags=["vocabulary"])
+    app.include_router(verify.router, prefix="/verify", tags=["verify"])
     return app
