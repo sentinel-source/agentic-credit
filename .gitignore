@@ -12,6 +12,16 @@ Thumbs.db
 # Node (for CI tooling)
 node_modules/
 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/
+
 # Environment
 .env
 .env.*
