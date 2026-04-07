@@ -44,6 +44,7 @@ class ProvideRequest(BaseModel):
 class SelectRequest(BaseModel):
     entity_type: str
     entity_id: str
+    transcript: str | None = None
 
 
 class ResolveActionRequest(BaseModel):

@@ -120,10 +120,15 @@ class JourneyEngine:
         if step_fn is None:
             raise ValueError(f"No step defined for select at stage {case.stage}")
         result = step_fn(case, request)
+        transcript_hash, token_verified = self._verify_transcript(
+            request.transcript,
+            case.pending_action.challenge_token if case.pending_action else None,
+        )
         case.record_evidence("select", {
             "entity_type": request.entity_type,
             "entity_id": request.entity_id,
-        }, ua_version=ua_version)
+        }, transcript=request.transcript, transcript_hash=transcript_hash,
+            challenge_token_verified=token_verified, ua_version=ua_version)
         return self._apply(case, result)
 
     def process_resolve(self, case: Case, request: ResolveActionRequest, *, ua_version: str | None = None) -> OperationResponse:
