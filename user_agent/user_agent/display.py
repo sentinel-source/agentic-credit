@@ -51,7 +51,7 @@ def handle_regulated_content(params: dict) -> str:
             if choice in ("yes", "y"):
                 return json.dumps({"user_response": "authorised", "displayed_verbatim": True})
             if choice in ("no", "n"):
-                return json.dumps({"user_response": "declined", "displayed_verbatim": True})
+                return json.dumps({"user_response": "refused", "displayed_verbatim": True})
             print("Please answer yes or no.", file=sys.stderr)
 
     # CaseOutcome or unknown — no user response needed

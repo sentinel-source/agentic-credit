@@ -121,7 +121,7 @@ def resolve_action(request: Request, case_id: str, body: ResolveActionRequest):
     except TerminalError:
         raise HTTPException(status_code=409, detail=f"Case is in terminal state: {case.status.value}")
     except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/{case_id}/withdraw", response_model=OperationResponse)

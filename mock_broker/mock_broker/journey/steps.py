@@ -447,7 +447,13 @@ def step_resolve_declaration(case: Case, request: Any) -> StepResult:
             status=CaseStatus.declined,
         )
 
-    selected_offer = case.offers[0] if case.offers else None
+    # Look up the offer selected at stage 6 via the declaration action's subjects.
+    selected_id = (
+        case.pending_action.subjects[0].entity_id
+        if case.pending_action and case.pending_action.subjects
+        else None
+    )
+    selected_offer = next((o for o in case.offers if o.id == selected_id), None)
     apply_url = selected_offer.apply_url if selected_offer else "https://example.com/apply"
     lender_name = selected_offer.lender if selected_offer else "the lender"
     offer_id = selected_offer.id if selected_offer else "unknown"

@@ -71,6 +71,17 @@ def test_authorise_instruction():
     assert data["user_response"] == "authorised"
 
 
+def test_refuse_instruction():
+    with patch("builtins.input", return_value="no"):
+        result = handle_regulated_content({
+            "action_type": "instruction",
+            "content": "Proceed to lender website.",
+            "response_options": "authorise",
+        })
+    data = json.loads(result)
+    assert data["user_response"] == "refused"
+
+
 def test_case_outcome_no_response():
     result = handle_regulated_content({
         "action_type": "case_outcome",

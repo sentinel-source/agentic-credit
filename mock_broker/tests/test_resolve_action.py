@@ -35,4 +35,4 @@ def test_resolve_wrong_action_id(client, case_id):
         "action_id": "wrong-id",
         "resolution": "acknowledged",
     })
-    assert resp.status_code == 422
+    assert resp.status_code == 400

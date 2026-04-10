@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import uuid
 
 import anthropic
 
-from .client import BrokerClient, BrokerError
+from .client import BrokerClient
 from .display import handle_regulated_content
 from .prompts import build_system_prompt
 from .tools import TOOL_DEFINITIONS, SessionState, execute_tool
@@ -138,7 +139,6 @@ def _run_claude_turn(
                         # Intercept: display verbatim and get user response
                         result_str = handle_regulated_content(block.input)
                         # Record in transcript
-                        import json
                         result_data = json.loads(result_str)
                         session.transcript.add_regulated_display(
                             block.input.get("action_type", ""),
